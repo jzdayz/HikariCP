@@ -28,7 +28,7 @@ import com.zaxxer.hikari.metrics.micrometer.MicrometerMetricsTrackerFactory;
 import com.zaxxer.hikari.util.ConcurrentBag;
 import com.zaxxer.hikari.util.ConcurrentBag.IBagStateListener;
 import com.zaxxer.hikari.util.SuspendResumeLock;
-import com.zaxxer.hikari.util.UtilityElf.DefaultThreadFactory;
+import com.zaxxer.hikari.util.UtilityElf.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,25 +39,12 @@ import java.sql.SQLTransientConnectionException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 
-import static com.zaxxer.hikari.util.ClockSource.currentTime;
-import static com.zaxxer.hikari.util.ClockSource.elapsedDisplayString;
-import static com.zaxxer.hikari.util.ClockSource.elapsedMillis;
-import static com.zaxxer.hikari.util.ClockSource.plusMillis;
+import static com.zaxxer.hikari.util.ClockSource.*;
 import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_IN_USE;
 import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_NOT_IN_USE;
-import static com.zaxxer.hikari.util.UtilityElf.createThreadPoolExecutor;
-import static com.zaxxer.hikari.util.UtilityElf.quietlySleep;
-import static com.zaxxer.hikari.util.UtilityElf.safeIsAssignableFrom;
+import static com.zaxxer.hikari.util.UtilityElf.*;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -108,6 +95,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
       super(config);
 
       this.connectionBag = new ConcurrentBag<>(this);
+      // 在获取连接的时候是否需要限制最大的同时获取的线程数量 默认不会
       this.suspendResumeLock = config.isAllowPoolSuspension() ? new SuspendResumeLock() : SuspendResumeLock.FAUX_LOCK;
 
       this.houseKeepingExecutorService = initializeHouseKeepingExecutorService();
@@ -170,12 +158,14 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    public Connection getConnection(final long hardTimeout) throws SQLException
    {
+      // 获取令牌，或者不加，默认的是不加
       suspendResumeLock.acquire();
       final long startTime = currentTime();
 
       try {
          long timeout = hardTimeout;
          do {
+            // 从容器中获取连接
             PoolEntry poolEntry = connectionBag.borrow(timeout, MILLISECONDS);
             if (poolEntry == null) {
                break; // We timed out... break and throw exception
@@ -333,8 +323,10 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    @Override
    public void addBagItem(final int waiting)
    {
+      // 如果等待者的数量，大于等于正在进行增加连接任务的数量
       final boolean shouldAdd = waiting - addConnectionQueue.size() >= 0; // Yes, >= is intentional.
       if (shouldAdd) {
+         // 提交一个创建连接请求 ( 并不一定会创建成功，会根据情况 )
          addConnectionExecutor.submit(poolEntryCreator);
       }
    }
@@ -444,8 +436,11 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
       if (connectionBag.remove(poolEntry)) {
          final Connection connection = poolEntry.close();
          closeConnectionExecutor.execute(() -> {
+            // 关闭Connection
             quietlyCloseConnection(connection, closureReason);
+            // 池为正常状态
             if (poolState == POOL_NORMAL) {
+               // 检测是否需要创建连接到池中
                fillPool();
             }
          });
@@ -470,22 +465,26 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    private PoolEntry createPoolEntry()
    {
       try {
+         // 创建连接
          final PoolEntry poolEntry = newPoolEntry();
-
+         // 连接最大生存时间
          final long maxLifetime = config.getMaxLifetime();
          if (maxLifetime > 0) {
             // variance up to 2.5% of the maxlifetime
+            // 如果最大时间大于10秒，那么设置为0到 maxLifetime / 40的随机数
             final long variance = maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0;
             final long lifetime = maxLifetime - variance;
-            poolEntry.setFutureEol(houseKeepingExecutorService.schedule(
+            // 可以看出实际的生存时间，可能会达不到指定的时间
+            poolEntry.setFutureEol(/*提交一个定时任务，在延迟指定的时间后执行一次*/houseKeepingExecutorService.schedule(
                () -> {
+                  // 标记驱逐
                   if (softEvictConnection(poolEntry, "(connection has passed maxLifetime)", false /* not owner */)) {
+                     // 检测是否需要提交，以及创建连接的请求
                      addBagItem(connectionBag.getWaitingThreadCount());
                   }
                },
                lifetime, MILLISECONDS));
          }
-
          return poolEntry;
       }
       catch (ConnectionSetupException e) {
@@ -516,6 +515,10 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    private synchronized void fillPool()
    {
+      // 需要添加的connection为：
+      // 1.添加的数量满足最大池允许的数量
+      // 2.添加的数量满足最小空闲数量
+      // 两个条件中最小值 - 正在执行生成connection的线程数
       final int connectionsToAdd = Math.min(config.getMaximumPoolSize() - getTotalConnections(), config.getMinimumIdle() - getIdleConnections())
                                    - addConnectionQueue.size();
       for (int i = 0; i < connectionsToAdd; i++) {
@@ -612,8 +615,11 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    private boolean softEvictConnection(final PoolEntry poolEntry, final String reason, final boolean owner)
    {
+      // 标记连接为驱逐状态
       poolEntry.markEvicted();
+      // 如果是所有者或者可以修改状态 从未使用至"留守"状态
       if (owner || connectionBag.reserve(poolEntry)) {
+         // 关闭连接，并且检测是否需要加入新的连接
          closeConnection(poolEntry, reason);
          return true;
       }
@@ -723,9 +729,13 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
       public Boolean call()
       {
          long sleepBackoff = 250L;
+         // 池为正常状态 && (当前的连接数<配置最大连接数 && (有线程正在等待获取连接||当前的空闲线程小于允许的最小线程数))
          while (poolState == POOL_NORMAL && shouldCreateAnotherConnection()) {
+            // 创建连接
             final PoolEntry poolEntry = createPoolEntry();
+            // 创建成功
             if (poolEntry != null) {
+               // 加入容器中
                connectionBag.add(poolEntry);
                logger.debug("{} - Added connection {}", poolName, poolEntry.connection);
                if (loggingPrefix != null) {
@@ -733,9 +743,11 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
                }
                return Boolean.TRUE;
             }
-
+            // 走到这里说明获取连接失败，所以sleep and retry
+            // sleep 第一次是250毫秒
             // failed to get connection from db, sleep and retry
             quietlySleep(sleepBackoff);
+            // sleep 时间成长策略
             sleepBackoff = Math.min(SECONDS.toMillis(10), Math.min(connectionTimeout, (long) (sleepBackoff * 1.5)));
          }
          // Pool is suspended or shutdown or at max size
@@ -749,6 +761,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
        * @return true if we should create a connection, false if the need has disappeared
        */
       private synchronized boolean shouldCreateAnotherConnection() {
+         // 当前的连接数<配置最大连接数 && (有线程正在等待获取连接||当前的空闲线程小于允许的最小线程数)
          return getTotalConnections() < config.getMaximumPoolSize() &&
             (connectionBag.getWaitingThreadCount() > 0 || getIdleConnections() < config.getMinimumIdle());
       }

@@ -15,17 +15,9 @@
  */
 package com.zaxxer.hikari.util;
 
-import static java.lang.Thread.yield;
-import static java.util.concurrent.TimeUnit.MICROSECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.locks.LockSupport.parkNanos;
-
-import static com.zaxxer.hikari.util.ClockSource.currentTime;
-import static com.zaxxer.hikari.util.ClockSource.elapsedNanos;
-import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_IN_USE;
-import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_NOT_IN_USE;
-import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_REMOVED;
-import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_RESERVED;
+import com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -37,10 +29,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry;
+import static com.zaxxer.hikari.util.ClockSource.currentTime;
+import static com.zaxxer.hikari.util.ClockSource.elapsedNanos;
+import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.*;
+import static java.lang.Thread.yield;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.locks.LockSupport.parkNanos;
 
 /**
  * This is a specialized concurrent bag that achieves superior performance
@@ -101,7 +96,9 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    public ConcurrentBag(final IBagStateListener listener)
    {
       this.listener = listener;
+      // 使用弱引用
       this.weakThreadLocals = useWeakThreadLocals();
+
 
       this.handoffQueue = new SynchronousQueue<>(true);
       this.waiters = new AtomicInteger();
@@ -126,17 +123,20 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    public T borrow(long timeout, final TimeUnit timeUnit) throws InterruptedException
    {
       // Try the thread-local list first
+      // 首先从当前线程使用过的connection中获取，connection
       final List<Object> list = threadList.get();
       for (int i = list.size() - 1; i >= 0; i--) {
          final Object entry = list.remove(i);
          @SuppressWarnings("unchecked")
          final T bagEntry = weakThreadLocals ? ((WeakReference<T>) entry).get() : (T) entry;
          if (bagEntry != null && bagEntry.compareAndSet(STATE_NOT_IN_USE, STATE_IN_USE)) {
+            // 如果使用过的connection中，可以获取到，并且可以cas修改掉状态，那么，直接返回。
             return bagEntry;
          }
       }
 
       // Otherwise, scan the shared list ... then poll the handoff queue
+      // 视自己为等待者
       final int waiting = waiters.incrementAndGet();
       try {
          for (T bagEntry : sharedList) {

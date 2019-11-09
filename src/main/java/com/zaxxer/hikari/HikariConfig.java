@@ -117,6 +117,7 @@ public class HikariConfig implements HikariConfigMXBean
       initializationFailTimeout = 1;
       isAutoCommit = true;
 
+      // 配置文件
       String systemProp = System.getProperty("hikaricp.configurationFile");
       if (systemProp != null) {
          loadProperties(systemProp);
@@ -960,6 +961,7 @@ public class HikariConfig implements HikariConfigMXBean
 
       validateNumerics();
 
+      // 打印配置
       if (LOGGER.isDebugEnabled() || unitTest) {
          logConfiguration();
       }

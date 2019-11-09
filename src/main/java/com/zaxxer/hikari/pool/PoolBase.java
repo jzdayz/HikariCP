@@ -198,6 +198,7 @@ abstract class PoolBase
 
    PoolEntry newPoolEntry() throws Exception
    {
+      // 创建连接设置一些配置属性
       return new PoolEntry(newConnection(), this, isReadOnly, isAutoCommit);
    }
 
