@@ -152,10 +152,11 @@ abstract class PoolBase
 
             final int validationSeconds = (int) Math.max(1000L, validationTimeout) / 1000;
 
+            // 使用jdbc的valid
             if (isUseJdbc4Validation) {
                return connection.isValid(validationSeconds);
             }
-
+            // 走到这里说明设置了testQuery
             try (Statement statement = connection.createStatement()) {
                if (isNetworkTimeoutSupported != TRUE) {
                   setQueryTimeout(statement, validationSeconds);
@@ -584,6 +585,7 @@ abstract class PoolBase
    private void createNetworkTimeoutExecutor(final DataSource dataSource, final String dsClassName, final String jdbcUrl)
    {
       // Temporary hack for MySQL issue: http://bugs.mysql.com/bug.php?id=75615
+      // 这个是mysql driver低版本的一个小bug，测试5.1.40+ 已经修复，主要是 MysqlIo#setSocketTimeOut 这个方法会npe
       if ((dsClassName != null && dsClassName.contains("Mysql")) ||
           (jdbcUrl != null && jdbcUrl.contains("mysql")) ||
           (dataSource != null && dataSource.getClass().getName().contains("Mysql"))) {

@@ -158,7 +158,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    public Connection getConnection(final long hardTimeout) throws SQLException
    {
-      // 获取令牌，或者不加，默认的是不加
+      // 获取令牌，或者不加，默认的是不加，空实现
       suspendResumeLock.acquire();
       final long startTime = currentTime();
 
@@ -168,11 +168,12 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
             // 从容器中获取连接
             PoolEntry poolEntry = connectionBag.borrow(timeout, MILLISECONDS);
             if (poolEntry == null) {
+               // 获取不到，抛异常
                break; // We timed out... break and throw exception
             }
 
             final long now = currentTime();
-            if (poolEntry.isMarkedEvicted() || (elapsedMillis(poolEntry.lastAccessed, now) > aliveBypassWindowMs && !isConnectionAlive(poolEntry.connection))) {
+            if (/*标记驱逐*/poolEntry.isMarkedEvicted() || (/*比较最后访问时间和当前时间的时间差*/elapsedMillis(poolEntry.lastAccessed, now) > aliveBypassWindowMs && !isConnectionAlive(poolEntry.connection))) {
                closeConnection(poolEntry, poolEntry.isMarkedEvicted() ? EVICTED_CONNECTION_MESSAGE : DEAD_CONNECTION_MESSAGE);
                timeout = hardTimeout - elapsedMillis(startTime);
             }
@@ -420,8 +421,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    @Override
    void recycle(final PoolEntry poolEntry)
    {
+      // metrics 上报
       metricsTracker.recordConnectionUsage(poolEntry);
-
+      // 将poolEntry放回容器
       connectionBag.requite(poolEntry);
    }
 
