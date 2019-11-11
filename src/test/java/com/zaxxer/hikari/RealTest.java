@@ -5,9 +5,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.sql.Connection;
-import java.util.concurrent.TimeUnit;
-
-import static org.junit.Assert.assertNotNull;
 
 public class RealTest {
 
@@ -22,16 +19,17 @@ public class RealTest {
       hikariDataSource.setMaxLifetime(30_000);
       hikariDataSource.setMaximumPoolSize(2);
       hikariDataSource.setMinimumIdle(2);
+      hikariDataSource.setLeakDetectionThreshold(2000);
    }
 
    @Test
    public void test1() throws Exception{
       try(
+         // 模拟未还连接
          Connection connection = hikariDataSource.getConnection();
          ) {
-         assertNotNull(connection);
+         Thread.sleep(3000);
       }
-      TimeUnit.SECONDS.sleep(10000000);
    }
 
    @After

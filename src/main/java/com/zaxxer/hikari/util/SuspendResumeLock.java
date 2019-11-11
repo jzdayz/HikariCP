@@ -25,6 +25,8 @@ import java.util.concurrent.Semaphore;
  * also provides a faux implementation that is used when the feature is disabled that
  * hopefully gets fully "optimized away" by the JIT.
  *
+ *  令牌获取，主要用在从池中获取连接时，是否首先需要获取令牌，默认是不用，也就是空实现{@link SuspendResumeLock#FAUX_LOCK}
+ *
  * @author Brett Wooldridge
  */
 public class SuspendResumeLock

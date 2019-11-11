@@ -16,16 +16,18 @@
 
 package com.zaxxer.hikari.pool;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * A Runnable that is scheduled in the future to report leaks.  The ScheduledFuture is
  * cancelled if the connection is closed before the leak time expires.
+ *
+ *  这个task用于检测泄露，也就是获取了连接，但是久久没有还
  *
  * @author Brett Wooldridge
  */
@@ -37,7 +39,7 @@ class ProxyLeakTask implements Runnable
    private ScheduledFuture<?> scheduledFuture;
    private String connectionName;
    private Exception exception;
-   private String threadName; 
+   private String threadName;
    private boolean isLeaked;
 
    static
@@ -76,7 +78,7 @@ class ProxyLeakTask implements Runnable
    {
       isLeaked = true;
 
-      final StackTraceElement[] stackTrace = exception.getStackTrace(); 
+      final StackTraceElement[] stackTrace = exception.getStackTrace();
       final StackTraceElement[] trace = new StackTraceElement[stackTrace.length - 5];
       System.arraycopy(stackTrace, 5, trace, 0, trace.length);
 
