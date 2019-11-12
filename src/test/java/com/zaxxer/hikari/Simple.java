@@ -1,10 +1,21 @@
 package com.zaxxer.hikari;
 
+import org.junit.Test;
+
 import java.util.Scanner;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.*;
 
 public class Simple {
-   public static void main(String[] args) throws Exception{
+
+   @Test
+   public void testScheduledExecutorService() throws Exception{
+      ScheduledExecutorService service = new ScheduledThreadPoolExecutor(10);
+      ScheduledFuture<?> schedule = service.schedule(() -> System.out.println(1), 2, TimeUnit.SECONDS);
+      schedule.get();
+   }
+
+   @Test
+   public void testSynchronousQueue() throws Exception{
       SynchronousQueue<String> s = new SynchronousQueue<>(true);
 
       Thread thread = Thread.currentThread();

@@ -604,7 +604,7 @@ public class HikariConfig implements HikariConfigMXBean
    /**
     * Determine whether internal pool queries, principally aliveness checks, will be isolated in their own transaction
     * via {@link Connection#rollback()}.  Defaults to {@code false}.
-    *
+    *    是否将池的testQuery产生的结果rollBack掉
     * @return {@code true} if internal pool queries are isolated, {@code false} if not
     */
    public boolean isIsolateInternalQueries()
