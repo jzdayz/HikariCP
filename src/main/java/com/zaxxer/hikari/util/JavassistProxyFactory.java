@@ -67,6 +67,9 @@ public final class JavassistProxyFactory
       modifyProxyFactory();
    }
 
+   /**
+    * 修改ProxyFactory 的方法体，每个方法换成对应的proxy实现
+    */
    private static void modifyProxyFactory() throws NotFoundException, CannotCompileException, IOException {
       System.out.println("Generating method bodies for com.zaxxer.hikari.proxy.ProxyFactory");
 

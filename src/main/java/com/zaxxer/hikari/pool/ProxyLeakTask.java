@@ -27,7 +27,8 @@ import java.util.concurrent.TimeUnit;
  * A Runnable that is scheduled in the future to report leaks.  The ScheduledFuture is
  * cancelled if the connection is closed before the leak time expires.
  *
- *  这个task用于检测泄露，也就是获取了连接，但是久久没有还
+ *  这个task用于检测泄露，也就是获取了连接，但是久久没有还，这个任务如果被调度，说明已经达到指定的时间
+ *  没有归还连接
  *
  * @author Brett Wooldridge
  */
@@ -72,6 +73,9 @@ class ProxyLeakTask implements Runnable
       scheduledFuture = executorService.schedule(this, leakDetectionThreshold, TimeUnit.MILLISECONDS);
    }
 
+   /**
+    *  任务启动，说明发生了泄露，太久没还连接
+    */
    /** {@inheritDoc} */
    @Override
    public void run()
@@ -86,6 +90,9 @@ class ProxyLeakTask implements Runnable
       LOGGER.warn("Connection leak detection triggered for {} on thread {}, stack trace follows", connectionName, threadName, exception);
    }
 
+   /**
+    *  发生异常，归还或者驱逐连接的时候会调用
+    */
    void cancel()
    {
       scheduledFuture.cancel(false);

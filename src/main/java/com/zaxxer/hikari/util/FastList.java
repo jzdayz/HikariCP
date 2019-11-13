@@ -18,20 +18,15 @@ package com.zaxxer.hikari.util;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.NoSuchElementException;
-import java.util.RandomAccess;
-import java.util.Spliterator;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 /**
  * Fast list without range checking.
+ *
+ *  跟arrayList一致，去掉了指针检查
  *
  * @author Brett Wooldridge
  */
@@ -228,7 +223,7 @@ public final class FastList<T> implements List<T>, RandomAccess, Serializable
                return elementData[index++];
             }
 
-            throw new NoSuchElementException("No more elements in FastList"); 
+            throw new NoSuchElementException("No more elements in FastList");
          }
       };
    }

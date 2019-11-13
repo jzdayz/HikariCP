@@ -53,6 +53,20 @@ import static java.util.concurrent.locks.LockSupport.parkNanos;
  * "requite" borrowed objects otherwise a memory leak will result.  Only
  * the "remove" method can completely remove an object from the bag.
  *
+ *
+ *
+ *   这个类是hikariCp的主要容器，利用了 threadLocal 减少了锁的争抢，同时利用
+ *   jdk SynchronousQueue ，直接在归还或者借用中，使用交换的方式( A借用的同时，如果
+ *   B归还，那么A可以直接获取到这个连接)
+ *
+ *   上述方式比直接在池中使用锁会好很多
+ *
+ *   在这个类中，主要是发挥无锁化，尽量做到无锁化，获取最大性能
+ *
+ * note:
+ *   这个类是一个容器，我在注释中，将容器的条目都视为"connection"，这个类也可以装其他
+ *   IConcurrentBagEntry的子类
+ *
  * @author Brett Wooldridge
  *
  * @param <T> the templated type to store in the bag
@@ -99,7 +113,9 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
       // 使用弱引用
       this.weakThreadLocals = useWeakThreadLocals();
 
-
+      // 这个是juc的一个api，在hikariCp中主要使用了#poll() 和 #offer()
+      // 起到的作用，主要是不同线程的连接置换，比如 在com.zaxxer.hikari.util.ConcurrentBag#requite(归还)方法中
+      // 如果有线程在等待获取，那么首先应该尝试将队列扔在交换队列中
       this.handoffQueue = new SynchronousQueue<>(true);
       this.waiters = new AtomicInteger();
       this.sharedList = new CopyOnWriteArrayList<>();
@@ -185,6 +201,8 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
     * that are borrowed from the bag but never "requited" will result
     * in a memory leak.
     *
+    *  归还连接
+    *
     * @param bagEntry the value to return to the bag
     * @throws NullPointerException if value is null
     * @throws IllegalStateException if the bagEntry was not borrowed from the bag
@@ -234,6 +252,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
       sharedList.add(bagEntry);
 
       // spin until a thread takes it or none are waiting
+      // 有线程等待 && 添加的连接是未使用状态 && 队列交换失败
       while (waiters.get() > 0 && bagEntry.getState() == STATE_NOT_IN_USE && !handoffQueue.offer(bagEntry)) {
          yield();
       }
@@ -331,12 +350,16 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
     * available again for borrowing.
     *
     * @param bagEntry the item to unreserve
+    *
     */
    public void unreserve(final T bagEntry)
    {
+      // 置换状态
       if (bagEntry.compareAndSet(STATE_RESERVED, STATE_NOT_IN_USE)) {
          // spin until a thread takes it or none are waiting
+         // 有等待线程 && 交换失败
          while (waiters.get() > 0 && !handoffQueue.offer(bagEntry)) {
+            // 尽量让出cpu时间片
             yield();
          }
       }

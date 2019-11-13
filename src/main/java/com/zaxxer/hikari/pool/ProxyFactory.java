@@ -16,13 +16,15 @@
 
 package com.zaxxer.hikari.pool;
 
-import java.sql.*;
-
 import com.zaxxer.hikari.util.FastList;
+
+import java.sql.*;
 
 /**
  * A factory class that produces proxies around instances of the standard
  * JDBC interfaces.
+ *
+ *  这个类的方法body会被javassist替换
  *
  * @author Brett Wooldridge
  */

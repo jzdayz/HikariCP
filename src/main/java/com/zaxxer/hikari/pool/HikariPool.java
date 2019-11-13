@@ -191,7 +191,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
                // metrics 上报
                metricsTracker.recordBorrowStats(poolEntry, startTime);
                // 返回代理的连接
-               return poolEntry.createProxyConnection(leakTaskFactory.schedule(poolEntry), now);
+               return poolEntry.createProxyConnection(
+                  // 调度一个后台任务，在指定设置的时间后，触发任务，表示连接太久没有归还，可能发生了泄露
+                  leakTaskFactory.schedule(poolEntry), now);
             }
          } while (timeout > 0L);
 
