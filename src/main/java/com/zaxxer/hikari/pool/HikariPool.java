@@ -179,7 +179,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
             final long now = currentTime();
             // 被标记驱逐 || ( now-最后访问时间 > 设置的时间 && not Alive )
-            // 这里或者后面的代码块，主要是为了，检测连接是否是可用的，如果最后访问时间超过了500毫秒，那么需要
+            // 这里或者后面的代码块，主要是为了，检测连接是否是可用的，如果最后访问时间超过了500毫秒(默认)，那么需要
             // 先检测connectionAlive see https://github.com/brettwooldridge/HikariCP/issues/900
             if (poolEntry.isMarkedEvicted() || (elapsedMillis(poolEntry.lastAccessed, now) > aliveBypassWindowMs && !isConnectionAlive(poolEntry.connection))) {
                // 关闭连接
