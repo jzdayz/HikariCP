@@ -62,8 +62,11 @@ public class HikariConfig implements HikariConfigMXBean
    // Properties changeable at runtime through the HikariConfigMXBean
    //
    private volatile String catalog;
+   // 从池中获取连接的超时时间(交换队列)
    private volatile long connectionTimeout;
+   // java.sql.Connection.setNetworkTimeout 调用时放入的参数
    private volatile long validationTimeout;
+   // 未使用的连接，最大空闲时间
    private volatile long idleTimeout;
    private volatile long leakDetectionThreshold;
    private volatile long maxLifetime;
