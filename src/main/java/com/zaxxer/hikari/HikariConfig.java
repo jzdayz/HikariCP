@@ -76,7 +76,6 @@ public class HikariConfig implements HikariConfigMXBean
    private volatile String password;
 
    // Properties NOT changeable at runtime
-   //
    private long initializationFailTimeout;
    private String connectionInitSql;
    private String connectionTestQuery;
