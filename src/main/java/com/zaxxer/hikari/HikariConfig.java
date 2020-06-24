@@ -62,8 +62,11 @@ public class HikariConfig implements HikariConfigMXBean
    // Properties changeable at runtime through the HikariConfigMXBean
    //
    private volatile String catalog;
+   // 从池中获取连接的超时时间(交换队列)
    private volatile long connectionTimeout;
+   // java.sql.Connection.setNetworkTimeout 调用时放入的参数
    private volatile long validationTimeout;
+   // 未使用的连接，最大空闲时间
    private volatile long idleTimeout;
    private volatile long leakDetectionThreshold;
    private volatile long maxLifetime;
@@ -73,7 +76,6 @@ public class HikariConfig implements HikariConfigMXBean
    private volatile String password;
 
    // Properties NOT changeable at runtime
-   //
    private long initializationFailTimeout;
    private String connectionInitSql;
    private String connectionTestQuery;
@@ -118,6 +120,7 @@ public class HikariConfig implements HikariConfigMXBean
       initializationFailTimeout = 1;
       isAutoCommit = true;
 
+      // 配置文件
       String systemProp = System.getProperty("hikaricp.configurationFile");
       if (systemProp != null) {
          loadProperties(systemProp);
@@ -604,7 +607,7 @@ public class HikariConfig implements HikariConfigMXBean
    /**
     * Determine whether internal pool queries, principally aliveness checks, will be isolated in their own transaction
     * via {@link Connection#rollback()}.  Defaults to {@code false}.
-    *
+    *    是否将池的testQuery产生的结果rollBack掉
     * @return {@code true} if internal pool queries are isolated, {@code false} if not
     */
    public boolean isIsolateInternalQueries()
@@ -1006,6 +1009,7 @@ public class HikariConfig implements HikariConfigMXBean
 
       validateNumerics();
 
+      // 打印配置
       if (LOGGER.isDebugEnabled() || unitTest) {
          logConfiguration();
       }

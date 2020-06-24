@@ -16,25 +16,25 @@
 
 package com.zaxxer.hikari.util;
 
+import com.zaxxer.hikari.pool.*;
+import javassist.*;
+import javassist.bytecode.ClassFile;
+
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-
-import com.zaxxer.hikari.pool.*;
-
-import javassist.*;
-import javassist.bytecode.ClassFile;
+import java.util.*;
 
 /**
  * This class generates the proxy objects for {@link Connection}, {@link Statement},
  * {@link PreparedStatement}, and {@link CallableStatement}.  Additionally it injects
  * method bodies into the {@link ProxyFactory} class methods that can instantiate
  * instances of the generated proxies.
+ *
+ *  这个方法 jdbc的常用类生成代理
+ *  主要的目的是：为了记录使用jdbc的过程中是否产生了脏数据，在一些关键的方法中，标记脏数据
+ *  大部分的方法是直接调用原生对象的方法，这是一部分重复劳动，所以使用了动态代理生成，不过只是
+ *  编译的时候生成对应的类
  *
  * @author Brett Wooldridge
  */
@@ -67,6 +67,9 @@ public final class JavassistProxyFactory
       modifyProxyFactory();
    }
 
+   /**
+    * 修改ProxyFactory 的方法体，每个方法换成对应的proxy实现
+    */
    private static void modifyProxyFactory() throws NotFoundException, CannotCompileException, IOException {
       System.out.println("Generating method bodies for com.zaxxer.hikari.proxy.ProxyFactory");
 
@@ -103,6 +106,9 @@ public final class JavassistProxyFactory
 
    /**
     *  Generate Javassist Proxy Classes
+    *
+    * @param primaryInterface 实现的接口
+    * @param superClassName 继承的父类
     */
    private static <T> void generateProxyClass(Class<T> primaryInterface, String superClassName, String methodBody) throws Exception
    {

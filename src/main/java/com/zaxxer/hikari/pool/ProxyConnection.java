@@ -250,9 +250,11 @@ public abstract class ProxyConnection implements Connection
       closeStatements();
 
       if (delegate != ClosedConnection.CLOSED_CONNECTION) {
+         // 取消检测连接泄露的task
          leakTask.cancel();
 
          try {
+            // 如果有脏数据，必须rollback，也就是调用了resultSet的一些crud方法，但是没有提交
             if (isCommitStateDirty && !isAutoCommit) {
                delegate.rollback();
                lastAccess = currentTime();
@@ -260,6 +262,7 @@ public abstract class ProxyConnection implements Connection
             }
 
             if (dirtyBits != 0) {
+               // 重置 connection设置的readOnly,autoCommit 等属性，设置为和连接池设置的一致
                poolEntry.resetConnectionState(this, dirtyBits);
                lastAccess = currentTime();
             }
@@ -274,6 +277,7 @@ public abstract class ProxyConnection implements Connection
          }
          finally {
             delegate = ClosedConnection.CLOSED_CONNECTION;
+            // 归还连接至容器
             poolEntry.recycle(lastAccess);
          }
       }

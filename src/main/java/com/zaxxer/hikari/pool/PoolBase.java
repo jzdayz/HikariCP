@@ -157,15 +157,16 @@ abstract class PoolBase
 
             final int validationSeconds = (int) Math.max(1000L, validationTimeout) / 1000;
 
+            // 使用jdbc的valid
             if (isUseJdbc4Validation) {
                return connection.isValid(validationSeconds);
             }
-
+            // 走到这里说明设置了testQuery
             try (Statement statement = connection.createStatement()) {
                if (isNetworkTimeoutSupported != TRUE) {
+                  // 设置查询超时时间
                   setQueryTimeout(statement, validationSeconds);
                }
-
                statement.execute(config.getConnectionTestQuery());
             }
          }
@@ -203,9 +204,13 @@ abstract class PoolBase
 
    PoolEntry newPoolEntry() throws Exception
    {
+      // 创建连接设置一些配置属性
       return new PoolEntry(newConnection(), this, isReadOnly, isAutoCommit);
    }
 
+   /**
+    *  将连接的属性，还原，因为用户可能修改了某些属性
+    */
    void resetConnectionState(final Connection connection, final ProxyConnection proxyConnection, final int dirtyBits) throws SQLException
    {
       int resetBits = 0;
@@ -267,6 +272,8 @@ abstract class PoolBase
 
    /**
     * Register MBeans for HikariConfig and HikariPool.
+    *
+    *  注册至mBeanServer
     *
     * @param hikariPool a HikariPool instance
     */
@@ -344,6 +351,8 @@ abstract class PoolBase
    /**
     * Obtain connection from data source.
     *
+    *  从dataSource获取连接
+    *
     * @return a Connection connection
     */
    private Connection newConnection() throws Exception
@@ -385,6 +394,8 @@ abstract class PoolBase
 
    /**
     * Setup a connection initial state.
+    *
+    *  设置连接的初始状态
     *
     * @param connection a Connection
     * @throws ConnectionSetupException thrown if any exception is encountered
@@ -591,6 +602,7 @@ abstract class PoolBase
    private void createNetworkTimeoutExecutor(final DataSource dataSource, final String dsClassName, final String jdbcUrl)
    {
       // Temporary hack for MySQL issue: http://bugs.mysql.com/bug.php?id=75615
+      // 这个是mysql driver低版本的一个小bug，测试5.1.40+ 已经修复，主要是 MysqlIo#setSocketTimeOut 这个方法会npe
       if ((dsClassName != null && dsClassName.contains("Mysql")) ||
           (jdbcUrl != null && jdbcUrl.contains("mysql")) ||
           (dataSource != null && dataSource.getClass().getName().contains("Mysql"))) {

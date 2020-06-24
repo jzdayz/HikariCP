@@ -16,6 +16,9 @@
 
 package com.zaxxer.hikari.util;
 
+/**
+ *  事务级别的常量
+ */
 public enum IsolationLevel
 {
    TRANSACTION_NONE(0),
